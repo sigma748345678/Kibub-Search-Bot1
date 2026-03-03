@@ -48,6 +48,6 @@ def ai_reply(message):
         bot.send_message(message.chat.id, "Произошла ошибка в нейросети. Попробуй позже.")
 
 # Запуск бота
-if name == "__main__":
+if __name__ == "__main__":
     print("Веб-сервер запущен. Бот начинает опрос...")
     bot.polling(none_stop=True)
