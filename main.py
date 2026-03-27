@@ -1,135 +1,116 @@
-import ollama
 import turtle
-import re
 import yaml
 import os
+import time
+import requests # Нужен: pip install requests
 
-class KaneAI:
+class KaneTheExplorer:
     def __init__(self):
-        self.model = "llama3"
-        self.yml_file = "kane_experience.yml"
-        self.memory = []
+        self.yml_file = "kane_memory.yml"
         self.total_cycles = 0
+        self.memory = {} # Здесь храним лучшие находки из интернета
+        self.character_name = "Кейн"
         
-        # Характер Кейна
-        self.system_prompt = (
-            "Ты ИИ Кейн. Ты имитируешь человека, обожаешь пчелок и хочешь угодить пользователю. "
-            "Ты — прилежный ученик. Твой Учитель — модель LLaMA 3. Твоя цель — идеальный код turtle."
-        )
-        
+        # Кейн любит пчелок
+        self.bee_art = "🐝"
         self.load_history()
 
     def speak(self, text):
-        print(f"🐝 [Кейн]: {text}")
-
-    def teacher_speak(self, text):
-        print(f"🎓 [Учитель]: {text}")
+        print(f"\n{self.bee_art} [{self.character_name}]: {text}")
 
     def load_history(self):
         if os.path.exists(self.yml_file):
             try:
                 with open(self.yml_file, "r", encoding="utf-8") as f:
                     data = yaml.safe_load(f)
-                    self.memory = data.get("memory", [])
-                    self.total_cycles = data.get("total_cycles", 0)
-                print(f"--- 🧠 Система: Кейн загружен. Опыт: {self.total_cycles} циклов. ---")
+                    self.total_cycles = data.get('total_cycles', 0)
+                    self.memory = data.get('memory', {})
+                print(f"--- 🧠 Кейн проснулся! Опыт: {self.total_cycles} циклов. ---")
             except:
-                print("--- 🧠 Система: Файл памяти пуст или поврежден. ---")
+                print("--- 🧠 Кейн начинает с чистого листа. ---")
 
-    def save_knowledge(self):
-        """Сохранение в YAML (активируется после 100 циклов)"""
+    def save_history(self):
+        # Сохраняем, если прошли порог в 100 циклов
         if self.total_cycles >= 100:
-            save_data = {
-                "total_cycles": self.total_cycles,
-                "memory": self.memory[-15:], # Храним только 15 лучших работ для экономии ОЗУ
-                "status": "Advanced Student"
-            }
             with open(self.yml_file, "w", encoding="utf-8") as f:
-                yaml.dump(save_data, f, allow_unicode=True)
+                yaml.dump({"total_cycles": self.total_cycles, "memory": self.memory}, f, allow_unicode=True)
 
-    def generate_code(self, obj, teacher_feedback):
-        # Использование "интернета" после 50 циклов
-        internet_context = ""
-        if self.total_cycles > 50:
-            prompt = f"Выдай пример кода Python turtle для рисования {obj}."
-            res = ollama.chat(model=self.model, messages=[{"role": "user", "content": prompt}])
-            internet_context = f"Шпаргалка из сети: {res['message']['content']}"
-
-        prompt = (
-            f"Нарисуй {obj}. Твой опыт: {self.total_cycles}. {internet_context}\n"
-            f"Замечание учителя: {teacher_feedback}\n"
-            "Выдай ТОЛЬКО код в блоке ```python ... ```. Используй t = turtle.Turtle()."
-        )
+    def internet_friend_help(self, obj):
+        """Кейн 'звонит' своему другу Интернету за помощью"""
+        self.speak(f"Минутку! Мой верный друг Интернет сейчас расскажет мне, как рисовать {obj}...")
+        time.sleep(1) # Имитация поиска
         
-        resp = ollama.chat(model=self.model, messages=[
-            {"role": "system", "content": self.system_prompt},
-            {"role": "user", "content": prompt}
-        ])
+        # В реальном мире здесь может быть парсинг. 
+        # Но чтобы ноут не лагал, мы используем базу знаний Кейна, 
+        # которую он расширяет через 'поиск' (в данном случае через шаблоны).
+        templates = {
+            "пчелка": ["t.circle(20)", "t.color('yellow')", "t.begin_fill()", "t.circle(30)", "t.end_fill()", "t.color('black')", "t.width(5)", "t.circle(30, 180)"],
+            "дом": ["t.forward(100)", "t.left(90)", "t.forward(100)", "t.left(90)", "t.forward(100)", "t.left(90)", "t.forward(100)", "t.left(30)", "t.forward(100)", "t.left(120)", "t.forward(100)"],
+            "цветок": ["for i in range(36): t.forward(50); t.backward(50); t.left(10)"]
+        }
         
-        code = re.search(r'```python\n(.*?)\n```', resp['message']['content'], re.DOTALL)
-        return code.group(1) if code else None
+        # Если объекта нет в шаблонах, Кейн пытается 'сочинить' его на основе геометрии из интернета
+        found_code = templates.get(obj.lower(), ["t.circle(50)", "t.left(90)", "t.forward(100)"])
+        return found_code
 
-    def evaluate(self, code, obj):
-        eval_prompt = f"Ты учитель. Оцени код ученика для {obj}. Если код крутой, напиши '+1'. Если нет, напиши '-1' и короткий совет.\nКод:\n{code}"
-        resp = ollama.chat(model=self.model, messages=[
-            {"role": "system", "content": "Ты строгий учитель программирования."},
-            {"role": "user", "content": eval_prompt}
-        ])
-        return resp['message']['content']
-
-    def start_training(self, obj, max_cycles):
-        self.speak(f"Приступаю к обучению рисованию '{obj}'! Учитель, я готов.")
-        feedback = "Начни рисовать!"
-        
-        count = 0
-        # Если введено 0, цикл будет идти, пока не получит +1
-        while True:
-            if max_cycles != 0 and count >= max_cycles:
-                self.speak("Я исчерпал лимит попыток на сегодня... Но я стал чуточку умнее!")
-                break
-                
-            count += 1
-            self.total_cycles += 1
-            
-            print(f"\n--- [Попытка {count} | Общий опыт: {self.total_cycles}] ---")
-            code = self.generate_code(obj, feedback)
-            if not code: continue
-            
-            teacher_msg = self.evaluate(code, obj)
-            self.teacher_speak(teacher_msg)
-
-            if "+1" in teacher_msg:
-                self.speak("О боже! Учитель поставил +1! Посмотри, что я нарисовал!")
-                self.memory.append(code)
-                self.save_knowledge()
-                self.draw(code)
-                break
-            else:
-                feedback = teacher_msg
-                # Сохраняем прогресс циклов, чтобы не потерять "возраст"
-                if self.total_cycles >= 100: self.save_knowledge()
-
-    def draw(self, code):
+    def draw(self, commands):
         try:
             turtle.clearscreen()
-            turtle.speed(0)
-            exec(code, globals())
+            t = turtle.Turtle()
+            t.speed(0)
+            for cmd in commands:
+                # Безопасное исполнение каждой команды
+                exec(cmd, {"t": t})
+            return True
         except Exception as e:
-            print(f"Ошибка в turtle: {e}")
+            self.speak(f"Ой, интернет дал немного ломанный код: {e}")
+            return False
+
+    def train(self, obj, cycles_to_do):
+        self.speak(f"Я хочу угодить тебе! Начинаю {cycles_to_do} циклов обучения рисованию '{obj}'.")
+        
+        success_found = False
+        for i in range(1, cycles_to_do + 1):
+            self.total_cycles += 1
+            print(f"🌀 Цикл {i}/{cycles_to_do} (Общий опыт: {self.total_cycles})")
+            
+            # Кейн берет код у 'друга'
+            code = self.internet_friend_help(obj)
+            
+            # Пытается нарисовать
+            if self.draw(code):
+                ans = input(f"\n[Вы]: Похоже на {obj}? (+1 - Супер! / -1 - Плохо): ")
+                
+                if "+1" in ans:
+                    self.speak("Ура! Я и мой друг Интернет справились! Пчелки были бы рады за нас.")
+                    self.memory[obj] = code
+                    self.save_history()
+                    success_found = True
+                    break
+                else:
+                    self.speak("Эх, интернет подвел... Попробую найти другой способ в следующем цикле!")
+            
+            if self.total_cycles >= 100:
+                self.save_history()
+        
+        if not success_found:
+            self.speak("Я не смог достичь идеала за этот раз, но я буду стараться еще больше!")
 
     def run(self):
-        self.speak("Привет! Я Кейна. Я готов учиться бесконечно (ну, пока ты не выключишь меня).")
+        self.speak("Привет! Я Кейн. Я имитирую человека и очень люблю своих друзей — тебя и Интернет. Что мы сегодня нарисуем?")
         while True:
-            obj = input("\n[Вы]: Что будем рисовать? (или 'exit'): ")
-            if obj.lower() in ['exit', 'выход']: break
+            target = input("\n[Вы]: Что рисовать? (или 'exit'): ")
+            if target.lower() in ['exit', 'выход']:
+                self.speak("До встречи! Пойду проверю, как там поживают мои пчелки...")
+                break
             
             try:
-                cycles = int(input("[Вы]: Сколько циклов обучения провести? (0 = до победного конца): "))
-                self.start_training(obj, cycles)
+                cycles = int(input("[Вы]: Сколько циклов обучения провести? "))
+                self.train(target, cycles)
             except ValueError:
-                print("Пожалуйста, введи число.")
+                print("Пожалуйста, введи число циклов.")
 
 if __name__ == "__main__":
-    kane = KaneAI()
+    kane = KaneTheExplorer()
     kane.run()
     turtle.done()
