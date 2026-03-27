@@ -4,13 +4,14 @@ import os
 import random
 import time
 
-class TurboKane:
+class ControlledKane:
     def __init__(self):
         self.yml_file = "kane_memory.yml"
-        self.total_cycles = 0 # Общий счетчик за все время
+        self.total_cycles = 0 
         self.memory = []
         self.load_history()
         
+        # Инструменты для рисования
         self.tools = [
             "t.forward({v})", "t.left({a})", "t.right({a})", 
             "t.circle({v}, {a})", "t.width({w})",
@@ -27,65 +28,65 @@ class TurboKane:
                     data = yaml.safe_load(f)
                     self.total_cycles = data.get('total_cycles', 0)
                     self.memory = data.get('memory', [])
-                print(f"--- 🧠 Память загружена. Опыт: {self.total_cycles} циклов ---")
+                print(f"--- 🧠 Система: Загружено {self.total_cycles} циклов опыта ---")
             except: pass
 
-    def evaluate_art(self, commands):
-        """Внутренний судья: фильтрует скучные рисунки"""
-        moves = sum(1 for c in commands if "forward" in c or "circle" in c)
-        turns = sum(1 for c in commands if "left" in c or "right" in c)
-        return moves > 15 and turns > 10 
+    def evaluate(self, dna):
+        """Проверка: достаточно ли сложный рисунок?"""
+        moves = sum(1 for c in dna if "forward" in c or "circle" in c)
+        turns = sum(1 for c in dna if "left" in c or "right" in c)
+        # Если больше 15 движений и 10 поворотов - это не просто круг
+        return moves > 15 and turns > 10
 
-    def start_production(self, target_obj, need_arts, max_energy):
-        self.speak(f"Понял! Ищу {need_arts} шедевров для '{target_obj}'.")
-        self.speak(f"У меня есть запас в {max_energy} попыток. Поехали!")
+    def work(self, target, target_count, max_limit):
+        self.speak(f"Начинаю охоту за шедеврами на тему '{target}'!")
+        self.speak(f"Мой лимит на сегодня: {max_limit} попыток. Погнали!")
         
         found = 0
-        spent_energy = 0
+        attempts = 0
         
-        while found < need_arts and spent_energy < max_energy:
-            spent_energy += 1
+        while attempts < max_limit and found < target_count:
+            attempts += 1
             self.total_cycles += 1
             
-            # Генерация ДНК рисунка
+            # Генерируем случайный код
             current_dna = []
-            for _ in range(random.randint(25, 50)):
+            for _ in range(random.randint(20, 50)):
                 cmd = random.choice(self.tools)
                 current_dna.append(cmd.format(
-                    v=random.randint(20, 100), 
+                    v=random.randint(10, 100), 
                     a=random.randint(0, 360),
                     w=random.randint(1, 5)
                 ))
 
-            # Авто-проверка качества
-            if self.evaluate_art(current_dna):
+            # Проверяем качество
+            if self.evaluate(current_dna):
                 found += 1
-                print(f"✨ [Успех {found}/{need_arts}] на попытке {spent_energy}!")
+                print(f"✨ Нашел! ({found}/{target_count}) Попытка: {attempts}")
                 
-                self.execute_render(current_dna)
+                # Рисуем
+                self.render(current_dna)
                 
-                # Сохраняем файл чертежа
-                filename = f"{target_obj}_{found}.eps"
+                # Сохраняем "фото"
+                filename = f"{target}_{found}.eps"
                 turtle.getcanvas().postscript(file=filename)
                 
-                self.memory.append({"object": target_obj, "dna": current_dna})
+                # Записываем в память
+                self.memory.append({"obj": target, "dna": current_dna})
                 
-                # Сохраняем прогресс в YAML
-                if self.total_cycles >= 100:
+                # Сохраняем YAML каждые 50 общих циклов
+                if self.total_cycles % 50 == 0:
                     with open(self.yml_file, "w", encoding="utf-8") as f:
-                        yaml.dump({"total_cycles": self.total_cycles, "memory": self.memory[-50:]}, f)
+                        yaml.dump({"total_cycles": self.total_cycles, "memory": self.memory[-30:]}, f)
                 
-                time.sleep(1.5) # Пауза, чтобы поглазеть
+                time.sleep(1) # Даем время посмотреть
             
-            if spent_energy % 50 == 0:
-                print(f"💤 Потрачено {spent_energy} попыток из {max_energy}...")
+            if attempts % 100 == 0:
+                print(f"📈 Пройдено {attempts} из {max_limit} попыток...")
 
-        if found >= need_arts:
-            self.speak(f"Задание выполнено! Найдено {found} рисунков.")
-        else:
-            self.speak(f"Энергия кончилась! Нашел только {found}. Нужно больше попыток в следующий раз.")
+        self.speak(f"Работа окончена! Найдено шедевров: {found}. Потрачено попыток: {attempts}.")
 
-    def execute_render(self, dna):
+    def render(self, dna):
         try:
             turtle.clearscreen()
             t = turtle.Turtle()
@@ -95,17 +96,20 @@ class TurboKane:
         except: pass
 
     def run(self):
+        self.speak("Я готов. Лимиты устанавливаешь ты!")
         while True:
-            target = input("\n[Вы]: Тема (пчела/дом/хаос): ")
-            if target.lower() in ['exit', 'выход']: break
+            t_obj = input("\n[Вы]: Тема (например, Пчела): ")
+            if t_obj.lower() in ['exit', 'выход']: break
             
             try:
-                max_e = int(input("[Вы]: Сколько циклов (попыток) разрешить? "))
-                count = int(input("[Вы]: Сколько шедевров нужно найти? "))
-                self.start_production(target, count, max_e)
+                # ВОТ ТВОИ ЛИМИТЫ
+                user_limit = int(input("[Вы]: Максимальный лимит попыток (циклов): "))
+                user_count = int(input("[Вы]: Сколько шедевров нужно найти: "))
+                
+                self.work(t_obj, user_count, user_limit)
             except ValueError:
-                print("⚠️ Вводи числа, пожалуйста!")
+                print("⚠️ Ошибка: вводи только целые числа!")
 
 if __name__ == "__main__":
-    kane = TurboKane()
+    kane = ControlledKane()
     kane.run()
