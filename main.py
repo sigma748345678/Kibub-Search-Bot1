@@ -1,22 +1,25 @@
 import turtle
 import yaml
 import os
-import time
-import requests # Нужен: pip install requests
+import random
 
-class KaneTheExplorer:
+class SmartKane:
     def __init__(self):
-        self.yml_file = "kane_memory.yml"
+        self.yml_file = "kane_experience.yml"
         self.total_cycles = 0
-        self.memory = {} # Здесь храним лучшие находки из интернета
-        self.character_name = "Кейн"
+        self.memory = {} # Твои любимые рисунки (+1)
+        self.attempts = 0 # Попытки для текущего объекта
         
-        # Кейн любит пчелок
-        self.bee_art = "🐝"
+        # Базовые "знания" Кейна, которые он расширяет
+        self.internet_blocks = [
+            "t.forward({val})", "t.left({ang})", "t.right({ang})", 
+            "t.circle({val}, {ang})", "t.color(random.choice(['orange', 'black', 'blue', 'red']))",
+            "t.width({val}/10)", "t.begin_fill()", "t.end_fill()"
+        ]
         self.load_history()
 
     def speak(self, text):
-        print(f"\n{self.bee_art} [{self.character_name}]: {text}")
+        print(f"\n🐝 [Кейн]: {text}")
 
     def load_history(self):
         if os.path.exists(self.yml_file):
@@ -25,92 +28,80 @@ class KaneTheExplorer:
                     data = yaml.safe_load(f)
                     self.total_cycles = data.get('total_cycles', 0)
                     self.memory = data.get('memory', {})
-                print(f"--- 🧠 Кейн проснулся! Опыт: {self.total_cycles} циклов. ---")
-            except:
-                print("--- 🧠 Кейн начинает с чистого листа. ---")
+                print(f"--- 🧠 Кейн вспомнил {self.total_cycles} уроков. ---")
+            except: pass
 
     def save_history(self):
-        # Сохраняем, если прошли порог в 100 циклов
+        # Сохранение после 100 циклов (или когда захочешь)
         if self.total_cycles >= 100:
             with open(self.yml_file, "w", encoding="utf-8") as f:
-                yaml.dump({"total_cycles": self.total_cycles, "memory": self.memory}, f, allow_unicode=True)
+                yaml.dump({"total_cycles": self.total_cycles, "memory": self.memory}, f)
 
-    def internet_friend_help(self, obj):
-        """Кейн 'звонит' своему другу Интернету за помощью"""
-        self.speak(f"Минутку! Мой верный друг Интернет сейчас расскажет мне, как рисовать {obj}...")
-        time.sleep(1) # Имитация поиска
+    def generate_creative_code(self, obj):
+        """Кейн 'созванивается с инетом' и собирает новый код"""
+        # Чем больше попыток (-1), тем сильнее меняется код (рандом зависит от попытки)
+        random.seed(self.total_cycles + self.attempts)
         
-        # В реальном мире здесь может быть парсинг. 
-        # Но чтобы ноут не лагал, мы используем базу знаний Кейна, 
-        # которую он расширяет через 'поиск' (в данном случае через шаблоны).
-        templates = {
-            "пчелка": ["t.circle(20)", "t.color('yellow')", "t.begin_fill()", "t.circle(30)", "t.end_fill()", "t.color('black')", "t.width(5)", "t.circle(30, 180)"],
-            "дом": ["t.forward(100)", "t.left(90)", "t.forward(100)", "t.left(90)", "t.forward(100)", "t.left(90)", "t.forward(100)", "t.left(30)", "t.forward(100)", "t.left(120)", "t.forward(100)"],
-            "цветок": ["for i in range(36): t.forward(50); t.backward(50); t.left(10)"]
-        }
+        code = ["t = turtle.Turtle()", "t.speed(0)"]
         
-        # Если объекта нет в шаблонах, Кейн пытается 'сочинить' его на основе геометрии из интернета
-        found_code = templates.get(obj.lower(), ["t.circle(50)", "t.left(90)", "t.forward(100)"])
-        return found_code
+        # Если Кейн уже успешно рисовал это раньше, он берет базу оттуда
+        if obj in self.memory and random.random() > 0.3:
+            code.extend(self.memory[obj])
+            self.speak(f"Я помню, что тебе нравилось в прошлый раз, но интернет-друг советует добавить деталей!")
 
-    def draw(self, commands):
+        # Добавляем новые случайные линии и формы (от 5 до 15 блоков)
+        for _ in range(random.randint(5, 15)):
+            block = random.choice(self.internet_blocks)
+            code.append(block.format(val=random.randint(10, 100), ang=random.randint(0, 360)))
+        
+        return code
+
+    def run_drawing(self, code):
         try:
             turtle.clearscreen()
-            t = turtle.Turtle()
-            t.speed(0)
-            for cmd in commands:
-                # Безопасное исполнение каждой команды
-                exec(cmd, {"t": t})
+            # Выполняем каждую строчку кода
+            for line in code:
+                exec(line, {"t": turtle, "random": random, "turtle": turtle})
             return True
         except Exception as e:
-            self.speak(f"Ой, интернет дал немного ломанный код: {e}")
+            print(f"Ошибка кода: {e}")
             return False
 
-    def train(self, obj, cycles_to_do):
-        self.speak(f"Я хочу угодить тебе! Начинаю {cycles_to_do} циклов обучения рисованию '{obj}'.")
+    def train_on_object(self, obj, max_tries):
+        self.attempts = 0
+        self.speak(f"Хозяин, я пробую нарисовать '{obj}'. Если будет круг — сразу бей меня минусом, я исправлюсь!")
         
-        success_found = False
-        for i in range(1, cycles_to_do + 1):
+        while self.attempts < max_tries:
+            self.attempts += 1
             self.total_cycles += 1
-            print(f"🌀 Цикл {i}/{cycles_to_do} (Общий опыт: {self.total_cycles})")
             
-            # Кейн берет код у 'друга'
-            code = self.internet_friend_help(obj)
+            code = self.generate_creative_code(obj)
+            self.run_drawing(code)
             
-            # Пытается нарисовать
-            if self.draw(code):
-                ans = input(f"\n[Вы]: Похоже на {obj}? (+1 - Супер! / -1 - Плохо): ")
-                
-                if "+1" in ans:
-                    self.speak("Ура! Я и мой друг Интернет справились! Пчелки были бы рады за нас.")
-                    self.memory[obj] = code
-                    self.save_history()
-                    success_found = True
-                    break
-                else:
-                    self.speak("Эх, интернет подвел... Попробую найти другой способ в следующем цикле!")
+            print(f"\n--- Попытка №{self.attempts} ---")
+            ans = input(f"[Вы]: Это похоже на '{obj}'? (+1 — ДА / -1 — НЕТ, ДЕЛАЙ ДРУГОЕ): ")
             
-            if self.total_cycles >= 100:
+            if "+1" in ans:
+                self.speak("УРА! Я не безнадежен! Записываю этот рецепт в свою книгу.")
+                self.memory[obj] = code[2:] # Сохраняем только суть без инициализации
                 self.save_history()
-        
-        if not success_found:
-            self.speak("Я не смог достичь идеала за этот раз, но я буду стараться еще больше!")
-
-    def run(self):
-        self.speak("Привет! Я Кейн. Я имитирую человека и очень люблю своих друзей — тебя и Интернет. Что мы сегодня нарисуем?")
-        while True:
-            target = input("\n[Вы]: Что рисовать? (или 'exit'): ")
-            if target.lower() in ['exit', 'выход']:
-                self.speak("До встречи! Пойду проверю, как там поживают мои пчелки...")
                 break
+            else:
+                self.speak("Понял, это был мусор! Ищу в интернете другие способы...")
+                if self.total_cycles >= 100: self.save_history()
+
+    def main_loop(self):
+        self.speak("Я Кейн. Я больше не буду рисовать только круги, обещаю! Что рисуем?")
+        while True:
+            target = input("\n[Вы]: Название объекта (или 'exit'): ")
+            if target.lower() in ['exit', 'выход']: break
             
             try:
-                cycles = int(input("[Вы]: Сколько циклов обучения провести? "))
-                self.train(target, cycles)
-            except ValueError:
-                print("Пожалуйста, введи число циклов.")
+                limit = int(input("[Вы]: Сколько раз мне разрешено ошибиться? "))
+                self.train_on_object(target, limit)
+            except:
+                print("Введи число!")
 
 if __name__ == "__main__":
-    kane = KaneTheExplorer()
-    kane.run()
-    turtle.done()
+    kane = SmartKane()
+    kane.main_loop()
