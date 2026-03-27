@@ -4,14 +4,13 @@ import os
 import random
 import time
 
-class ControlledKane:
+class HardWorkingKane:
     def __init__(self):
         self.yml_file = "kane_memory.yml"
         self.total_cycles = 0 
         self.memory = []
         self.load_history()
         
-        # Инструменты для рисования
         self.tools = [
             "t.forward({v})", "t.left({a})", "t.right({a})", 
             "t.circle({v}, {a})", "t.width({w})",
@@ -28,28 +27,28 @@ class ControlledKane:
                     data = yaml.safe_load(f)
                     self.total_cycles = data.get('total_cycles', 0)
                     self.memory = data.get('memory', [])
-                print(f"--- 🧠 Система: Загружено {self.total_cycles} циклов опыта ---")
+                print(f"--- 🧠 Система: Опыт {self.total_cycles} циклов подгружен ---")
             except: pass
 
     def evaluate(self, dna):
-        """Проверка: достаточно ли сложный рисунок?"""
+        """Внутренняя проверка качества"""
         moves = sum(1 for c in dna if "forward" in c or "circle" in c)
         turns = sum(1 for c in dna if "left" in c or "right" in c)
-        # Если больше 15 движений и 10 поворотов - это не просто круг
         return moves > 15 and turns > 10
 
-    def work(self, target, target_count, max_limit):
-        self.speak(f"Начинаю охоту за шедеврами на тему '{target}'!")
-        self.speak(f"Мой лимит на сегодня: {max_limit} попыток. Погнали!")
+    def start_mission(self, target, target_count, must_do_cycles):
+        self.speak(f"Приказ принят. Я ОБЯЗАН выполнить {must_do_cycles} циклов.")
+        self.speak(f"Цель по шедеврам: {target_count}. Начинаю работу...")
         
         found = 0
-        attempts = 0
+        done_cycles = 0
         
-        while attempts < max_limit and found < target_count:
-            attempts += 1
+        # Теперь цикл идет СТРОГО до выполнения нормы по циклам
+        while done_cycles < must_do_cycles:
+            done_cycles += 1
             self.total_cycles += 1
             
-            # Генерируем случайный код
+            # Генерация ДНК
             current_dna = []
             for _ in range(random.randint(20, 50)):
                 cmd = random.choice(self.tools)
@@ -59,32 +58,30 @@ class ControlledKane:
                     w=random.randint(1, 5)
                 ))
 
-            # Проверяем качество
-            if self.evaluate(current_dna):
+            # Если нашли шедевр и план по ним еще не выполнен
+            if self.evaluate(current_dna) and found < target_count:
                 found += 1
-                print(f"✨ Нашел! ({found}/{target_count}) Попытка: {attempts}")
-                
-                # Рисуем
+                print(f"✨ [Шедевр {found}/{target_count}] найден на цикле {done_cycles}!")
                 self.render(current_dna)
                 
-                # Сохраняем "фото"
+                # Сохраняем файл
                 filename = f"{target}_{found}.eps"
                 turtle.getcanvas().postscript(file=filename)
                 
-                # Записываем в память
                 self.memory.append({"obj": target, "dna": current_dna})
-                
-                # Сохраняем YAML каждые 50 общих циклов
-                if self.total_cycles % 50 == 0:
-                    with open(self.yml_file, "w", encoding="utf-8") as f:
-                        yaml.dump({"total_cycles": self.total_cycles, "memory": self.memory[-30:]}, f)
-                
-                time.sleep(1) # Даем время посмотреть
-            
-            if attempts % 100 == 0:
-                print(f"📈 Пройдено {attempts} из {max_limit} попыток...")
+                time.sleep(1) # Даем посмотреть
 
-        self.speak(f"Работа окончена! Найдено шедевров: {found}. Потрачено попыток: {attempts}.")
+            # Индикатор прогресса в консоли (каждые 10% пути)
+            if done_cycles % (max(1, must_do_cycles // 10)) == 0:
+                percent = (done_cycles / must_do_cycles) * 100
+                print(f"⚙️ Выполнено: {percent:.1f}% ({done_cycles}/{must_do_cycles})")
+
+            # Автосохранение опыта в YAML
+            if self.total_cycles % 100 == 0:
+                with open(self.yml_file, "w", encoding="utf-8") as f:
+                    yaml.dump({"total_cycles": self.total_cycles, "memory": self.memory[-50:]}, f)
+
+        self.speak(f"Норма выполнена! Отработано {done_cycles} циклов. Найдено {found} шедевров.")
 
     def render(self, dna):
         try:
@@ -96,20 +93,19 @@ class ControlledKane:
         except: pass
 
     def run(self):
-        self.speak("Я готов. Лимиты устанавливаешь ты!")
         while True:
-            t_obj = input("\n[Вы]: Тема (например, Пчела): ")
+            t_obj = input("\n[Вы]: Тема рисунка: ")
             if t_obj.lower() in ['exit', 'выход']: break
             
             try:
-                # ВОТ ТВОИ ЛИМИТЫ
-                user_limit = int(input("[Вы]: Максимальный лимит попыток (циклов): "))
-                user_count = int(input("[Вы]: Сколько шедевров нужно найти: "))
+                # Твое требование
+                cycles_demand = int(input("[Вы]: Сколько циклов ОБЯЗАТЕЛЬНО выполнить? "))
+                arts_goal = int(input("[Вы]: Сколько шедевров нужно выжать из этого? "))
                 
-                self.work(t_obj, user_count, user_limit)
+                self.start_mission(t_obj, arts_goal, cycles_demand)
             except ValueError:
-                print("⚠️ Ошибка: вводи только целые числа!")
+                print("⚠️ Вводи только числа!")
 
 if __name__ == "__main__":
-    kane = ControlledKane()
+    kane = HardWorkingKane()
     kane.run()
