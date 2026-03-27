@@ -1,98 +1,107 @@
-import requests
 import turtle
-import re
 import yaml
 import os
 import random
+import time
 
-# Вставь сюда свой токен с Hugging Face
-HF_TOKEN = "ТВОЙ_HF_TOKEN_ЗДЕСЬ"
-# Используем легкую, но умную модель (например, Zephyr или Mistral)
-API_URL = "https://api-inference.huggingface.co/models/HuggingFaceH4/zephyr-7b-beta"
-
-class InternetKane:
+class AutonomousKane:
     def __init__(self):
         self.yml_file = "kane_memory.yml"
-        self.headers = {"Authorization": f"Bearer {HF_TOKEN}"}
         self.total_cycles = 0
-        self.memory = {}
+        self.memory = []
         self.load_history()
+        
+        # Инструменты Кейна
+        self.tools = [
+            "t.forward({v})", "t.left({a})", "t.right({a})", 
+            "t.circle({v}, {a})", "t.width({w})",
+            "t.pencolor(random.random(), random.random(), random.random())"
+        ]
 
     def speak(self, text):
         print(f"🐝 [Кейн]: {text}")
 
     def load_history(self):
         if os.path.exists(self.yml_file):
-            with open(self.yml_file, "r", encoding="utf-8") as f:
-                data = yaml.safe_load(f)
-                self.total_cycles = data.get('total_cycles', 0)
-                self.memory = data.get('memory', {})
-            print(f"✅ Кейн загружен. Опыт: {self.total_cycles}")
+            try:
+                with open(self.yml_file, "r", encoding="utf-8") as f:
+                    data = yaml.safe_load(f)
+                    self.total_cycles = data.get('total_cycles', 0)
+                    self.memory = data.get('memory', [])
+                print(f"--- 🧠 Система: Кейн загружен. Опыт: {self.total_cycles} ---")
+            except: pass
 
-    def query_internet(self, prompt):
-        """Тот самый запрос через requests к 'интернет-мозгам'"""
-        payload = {"inputs": prompt, "parameters": {"max_new_tokens": 250}}
-        response = requests.post(API_URL, headers=self.headers, json=payload)
-        if response.status_code == 200:
-            return response.json()[0]['generated_text']
-        else:
-            return f"Ошибка связи: {response.status_code}"
+    def save_history(self):
+        # Автоматическое сохранение в YAML после 100 циклов
+        if self.total_cycles >= 100:
+            with open(self.yml_file, "w", encoding="utf-8") as f:
+                yaml.dump({"total_cycles": self.total_cycles, "memory": self.memory[-30:]}, f)
 
-    def get_code_from_web(self, obj):
-        self.speak(f"Запрашиваю код для '{obj}' у интернет-друзей...")
-        prompt = f"<|system|>\nТы помощник Python Turtle. Выдай только код.</s>\n<|user|>\nНапиши код на Python (turtle) для рисования {obj}. Используй t = turtle.Turtle(). Код оберни в ```python ```.</s>\n<|assistant|>"
-        return self.query_internet(prompt)
+    def evaluate_art(self, commands):
+        """Внутренний судья: проверяет сложность рисунка без участия человека"""
+        score = 0
+        dist = 0
+        angles = 0
+        
+        for cmd in commands:
+            if "forward" in cmd or "circle" in cmd:
+                score += 1 # За каждое движение
+            if "left" in cmd or "right" in cmd:
+                angles += 1 # За каждый поворот
+        
+        # Критерий успеха: минимум 10 движений и 5 поворотов
+        # Если рисунок слишком простой (круг или линия), он не пройдет
+        if score > 10 and angles > 5:
+            return True
+        return False
 
-    def verify_with_internet(self, code, obj):
-        """Автоматическая проверка кода через интернет"""
-        self.speak("Отправляю код на проверку интернет-учителю...")
-        prompt = f"<|system|>\nТы строгий учитель. Если код рисует {obj}, напиши '+1'. Если нет, напиши '-1'.</s>\n<|user|>\nПроверь этот код:\n{code}</s>\n<|assistant|>"
-        return self.query_internet(prompt)
+    def self_learn(self, target_obj):
+        self.speak(f"Начинаю автономное исследование объекта '{target_obj}'...")
+        
+        attempts_in_session = 0
+        while attempts_in_session < 50: # Кейн сделает 50 попыток сам
+            attempts_in_session += 1
+            self.total_cycles += 1
+            
+            # Генерация случайного набора команд (ДНК рисунка)
+            current_dna = []
+            complexity = random.randint(15, 30)
+            for _ in range(complexity):
+                cmd = random.choice(self.tools)
+                current_dna.append(cmd.format(
+                    v=random.randint(10, 80), 
+                    a=random.randint(0, 360),
+                    w=random.randint(1, 5)
+                ))
 
-    def draw(self, code):
+            # Внутренняя проверка
+            if self.evaluate_art(current_dna):
+                print(f"✅ Попытка {attempts_in_session}: Рисунок признан годным. Отрисовка...")
+                self.execute_render(current_dna)
+                self.memory.append({"object": target_obj, "dna": current_dna})
+                self.save_history()
+                time.sleep(1) # Даем тебе посмотреть на результат
+                break # Нашел один хороший вариант и закончил
+            else:
+                if attempts_in_session % 10 == 0:
+                    print(f"❌ Попытка {attempts_in_session}: Слишком просто, ищу дальше...")
+
+    def execute_render(self, dna):
         try:
             turtle.clearscreen()
             t = turtle.Turtle()
             t.speed(0)
-            # Выполняем код, который прислал интернет
-            exec(code, {"t": t, "turtle": turtle})
-            return True
-        except Exception as e:
-            print(f"⚠️ Ошибка в коде: {e}")
-            return False
-
-    def start_cycle(self, obj):
-        self.total_cycles += 1
-        raw_answer = self.get_code_from_web(obj)
-        
-        # Вытаскиваем код из ответа
-        match = re.search(r'```python\n(.*?)\n```', raw_answer, re.DOTALL)
-        if not match:
-            self.speak("Интернет прислал что-то странное, попробую еще раз.")
-            return
-
-        code = match.group(1)
-        
-        # Авто-проверка через интернет
-        verdict = self.verify_with_internet(code, obj)
-        print(f"🎓 [Интернет-Учитель]: {verdict}")
-
-        if "+1" in verdict:
-            self.speak(f"Учитель одобрил! Рисую {obj}.")
-            if self.draw(code):
-                self.memory[obj] = code
-                if self.total_cycles >= 100:
-                    with open(self.yml_file, "w") as f:
-                        yaml.dump({"total_cycles": self.total_cycles, "memory": self.memory}, f)
-        else:
-            self.speak("Учитель сказал, что код плохой. Попробую позже.")
+            for cmd in dna:
+                exec(cmd, {"t": t, "random": random})
+        except: pass
 
     def run(self):
+        self.speak("Я запущен в режиме полной автономии. Я сам решаю, что красиво.")
         while True:
-            target = input("\n[Вы]: Что Кейну нарисовать? (exit): ")
+            target = input("\n[Вы]: Что мне изучить сегодня? (exit): ")
             if target.lower() in ['exit', 'выход']: break
-            self.start_cycle(target)
+            self.self_learn(target)
 
 if __name__ == "__main__":
-    kane = InternetKane()
+    kane = AutonomousKane()
     kane.run()
