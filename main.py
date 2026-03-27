@@ -4,7 +4,7 @@ import os
 import random
 import time
 
-class HardWorkingKane:
+class IronWillKane:
     def __init__(self):
         self.yml_file = "kane_memory.yml"
         self.total_cycles = 0 
@@ -27,30 +27,27 @@ class HardWorkingKane:
                     data = yaml.safe_load(f)
                     self.total_cycles = data.get('total_cycles', 0)
                     self.memory = data.get('memory', [])
-                print(f"--- 🧠 Система: Опыт {self.total_cycles} циклов подгружен ---")
             except: pass
 
-    def evaluate(self, dna):
-        """Внутренняя проверка качества"""
-        moves = sum(1 for c in dna if "forward" in c or "circle" in c)
-        turns = sum(1 for c in dna if "left" in c or "right" in c)
-        return moves > 15 and turns > 10
+    def calculate_complexity(self, dna):
+        """Считает 'вес' рисунка. Чем выше, тем круче."""
+        # Вес = количество команд * разнообразие углов
+        return len(dna) * len(set([line.split(',')[0] for line in dna]))
 
-    def start_mission(self, target, target_count, must_do_cycles):
-        self.speak(f"Приказ принят. Я ОБЯЗАН выполнить {must_do_cycles} циклов.")
-        self.speak(f"Цель по шедеврам: {target_count}. Начинаю работу...")
+    def start_grind(self, target, cycles_to_do):
+        self.speak(f"Принято. Я ухожу в глубокое вычисление на {cycles_to_do} циклов.")
+        self.speak("Я не остановлюсь на 19-й попытке. Я прогоню ВСЕ.")
         
-        found = 0
-        done_cycles = 0
+        best_dna = None
+        best_score = 0
         
-        # Теперь цикл идет СТРОГО до выполнения нормы по циклам
-        while done_cycles < must_do_cycles:
-            done_cycles += 1
+        # СТРОГИЙ ЦИКЛ БЕЗ ВЫХОДА
+        for i in range(1, cycles_to_do + 1):
             self.total_cycles += 1
             
-            # Генерация ДНК
+            # Генерируем ДНК
             current_dna = []
-            for _ in range(random.randint(20, 50)):
+            for _ in range(random.randint(30, 60)): # Увеличили сложность
                 cmd = random.choice(self.tools)
                 current_dna.append(cmd.format(
                     v=random.randint(10, 100), 
@@ -58,32 +55,32 @@ class HardWorkingKane:
                     w=random.randint(1, 5)
                 ))
 
-            # Если нашли шедевр и план по ним еще не выполнен
-            if self.evaluate(current_dna) and found < target_count:
-                found += 1
-                print(f"✨ [Шедевр {found}/{target_count}] найден на цикле {done_cycles}!")
-                self.render(current_dna)
-                
-                # Сохраняем файл
-                filename = f"{target}_{found}.eps"
-                turtle.getcanvas().postscript(file=filename)
-                
-                self.memory.append({"obj": target, "dna": current_dna})
-                time.sleep(1) # Даем посмотреть
+            # Оцениваем сложность
+            current_score = self.calculate_complexity(current_dna)
+            
+            # Если этот вариант сложнее всех предыдущих - запоминаем
+            if current_score > best_score:
+                best_score = current_score
+                best_dna = current_dna
+                print(f"📈 Цикл {i}: Найден новый рекорд сложности ({best_score})")
 
-            # Индикатор прогресса в консоли (каждые 10% пути)
-            if done_cycles % (max(1, must_do_cycles // 10)) == 0:
-                percent = (done_cycles / must_do_cycles) * 100
-                print(f"⚙️ Выполнено: {percent:.1f}% ({done_cycles}/{must_do_cycles})")
+            # Каждые 1000 циклов отчет в консоль, чтобы ты видел, что ноут жив
+            if i % 1000 == 0:
+                print(f"⚙️ Прогресс: {i}/{cycles_to_do} ({int(i/cycles_to_do*100)}%) | Лучший балл: {best_score}")
 
-            # Автосохранение опыта в YAML
-            if self.total_cycles % 100 == 0:
-                with open(self.yml_file, "w", encoding="utf-8") as f:
-                    yaml.dump({"total_cycles": self.total_cycles, "memory": self.memory[-50:]}, f)
+        # ТОЛЬКО КОГДА ВСЕ ЦИКЛЫ ПРОЙДЕНЫ - РИСУЕМ
+        self.speak(f"Норма {cycles_to_do} выполнена. Отрисовываю самый сложный вариант из найденных.")
+        self.execute_render(best_dna)
+        
+        # Сохранение
+        filename = f"{target}_final.eps"
+        turtle.getcanvas().postscript(file=filename)
+        self.memory.append({"obj": target, "dna": best_dna, "score": best_score})
+        
+        with open(self.yml_file, "w", encoding="utf-8") as f:
+            yaml.dump({"total_cycles": self.total_cycles, "memory": self.memory[-20:]}, f)
 
-        self.speak(f"Норма выполнена! Отработано {done_cycles} циклов. Найдено {found} шедевров.")
-
-    def render(self, dna):
+    def execute_render(self, dna):
         try:
             turtle.clearscreen()
             t = turtle.Turtle()
@@ -94,18 +91,14 @@ class HardWorkingKane:
 
     def run(self):
         while True:
-            t_obj = input("\n[Вы]: Тема рисунка: ")
+            t_obj = input("\n[Вы]: Тема: ")
             if t_obj.lower() in ['exit', 'выход']: break
-            
             try:
-                # Твое требование
-                cycles_demand = int(input("[Вы]: Сколько циклов ОБЯЗАТЕЛЬНО выполнить? "))
-                arts_goal = int(input("[Вы]: Сколько шедевров нужно выжать из этого? "))
-                
-                self.start_mission(t_obj, arts_goal, cycles_demand)
+                demand = int(input("[Вы]: Сколько циклов ОБЯЗАТЕЛЬНО прогнать? "))
+                self.start_grind(t_obj, demand)
             except ValueError:
-                print("⚠️ Вводи только числа!")
+                print("⚠️ Вводи числа!")
 
 if __name__ == "__main__":
-    kane = HardWorkingKane()
+    kane = IronWillKane()
     kane.run()
